@@ -212,7 +212,7 @@ export function HeroBanner({ banners: bannersProp, banner, autoPlayInterval = 45
           <div className="w-10 sm:w-16 h-[2.5px] sm:h-[3px] bg-gradient-to-r from-brand-400 to-white/30 rounded-full mb-3 sm:mb-5" />
 
           {/* Subtitle */}
-          <p className="text-xs sm:text-sm md:text-base text-slate-200/90 mb-5 sm:mb-7 md:mb-8 max-w-xl leading-relaxed font-light drop-shadow line-clamp-3 sm:line-clamp-none">
+          <p className="text-xs sm:text-sm md:text-base text-slate-200/90 mb-5 sm:mb-7 md:mb-8 max-w-xl leading-relaxed font-light drop-shadow">
             {subtitle}
           </p>
 

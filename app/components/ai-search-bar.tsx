@@ -185,29 +185,38 @@ export function AISearchBar() {
               </button>
             </form>
 
-            {/* Visual Search Preview Pill */}
+            {/* Visual Search Preview Banner */}
             {imagePreview && (
-              <div className="flex items-center gap-3 border-b border-indigo-50 bg-indigo-50/40 px-5 py-2.5 text-xs text-indigo-900">
-                <div className="relative h-10 w-10 rounded-lg overflow-hidden border border-indigo-200 shrink-0">
-                  <Image src={imagePreview} alt="Uploaded sample" fill className="object-cover" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-indigo-950 truncate">Visual Search active</p>
-                  <p className="text-[11px] text-indigo-700 truncate">
-                    {visualAnalysis?.query
-                      ? `Detected: "${visualAnalysis.query}"`
-                      : "Analyzing shirt texture, collar & pattern with Gemini Vision..."}
-                  </p>
-                </div>
-                {visualAnalysis?.tags && visualAnalysis.tags.length > 0 && (
-                  <div className="hidden sm:flex gap-1">
-                    {visualAnalysis.tags.slice(0, 3).map((tag) => (
-                      <span key={tag} className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
-                        #{tag}
-                      </span>
-                    ))}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 border-b border-indigo-100 bg-indigo-50/60 p-3.5 sm:px-5 sm:py-3.5 text-xs text-indigo-900 w-full transition-all">
+                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                  <div className="relative h-12 w-12 sm:h-14 sm:w-14 rounded-xl overflow-hidden border border-indigo-200 shrink-0 shadow-xs">
+                    <Image src={imagePreview} alt="Uploaded sample" fill className="object-cover" />
                   </div>
-                )}
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-indigo-950 text-xs sm:text-sm">Visual Analysis Active</p>
+                      {visualAnalysis?.category && (
+                        <span className="rounded-full bg-indigo-200/80 px-2.5 py-0.5 text-[10px] font-bold text-indigo-900 capitalize border border-indigo-300/50">
+                          {visualAnalysis.category.replace(/-/g, " ")}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-indigo-800 font-medium leading-relaxed break-words">
+                      {visualAnalysis?.query
+                        ? `Detected: "${visualAnalysis.query}"`
+                        : "Analyzing shirt texture, collar & pattern with Gemini Vision..."}
+                    </p>
+                    {visualAnalysis?.tags && visualAnalysis.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {visualAnalysis.tags.map((tag) => (
+                          <span key={tag} className="rounded-full bg-indigo-100/90 px-2 py-0.5 text-[10px] font-semibold text-indigo-800 border border-indigo-200/60">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -215,7 +224,8 @@ export function AISearchBar() {
                     setVisualAnalysis(null);
                     setResults(null);
                   }}
-                  className="text-indigo-400 hover:text-indigo-700 p-1"
+                  className="self-end sm:self-center text-indigo-400 hover:text-indigo-700 hover:bg-indigo-100 p-1.5 rounded-lg transition-colors shrink-0"
+                  title="Clear visual search analysis"
                 >
                   <X className="h-4 w-4" />
                 </button>
