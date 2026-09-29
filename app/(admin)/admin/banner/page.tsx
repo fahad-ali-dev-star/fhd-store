@@ -876,14 +876,22 @@ export default function AdminBannerPage() {
                     <p className="text-[10px] text-slate-300 line-clamp-2 mb-3 max-w-xs font-light">
                       {previewBanner.subtitle}
                     </p>
-                    <div className={`flex ${isMobileView ? "flex-col gap-1.5" : "items-center gap-2"}`}>
-                      <span className="bg-white text-slate-900 px-2.5 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 shadow text-center">
-                        <span>{previewBanner.cta_text || "Shop"}</span>
-                        <ArrowRight size={10} />
+                    <div
+                      className={`w-full ${
+                        isMobileView
+                          ? previewBanner.secondary_cta_text
+                            ? "grid grid-cols-2 gap-1.5"
+                            : "flex"
+                          : "flex items-center gap-2"
+                      }`}
+                    >
+                      <span className="bg-white text-slate-900 px-2.5 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 shadow text-center truncate">
+                        <span className="truncate">{previewBanner.cta_text || "Shop"}</span>
+                        <ArrowRight size={10} className="shrink-0" />
                       </span>
                       {previewBanner.secondary_cta_text && (
-                        <span className="bg-white/20 border border-white/30 text-white px-2.5 py-1 rounded text-[10px] font-medium text-center">
-                          {previewBanner.secondary_cta_text}
+                        <span className="bg-white/20 border border-white/30 text-white px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-center truncate">
+                          <span className="truncate">{previewBanner.secondary_cta_text}</span>
                         </span>
                       )}
                     </div>

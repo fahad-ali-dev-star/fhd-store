@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { AdminOrder, OrderItemWithProduct } from "@/lib/supabase/types";
+import { InventoryForecastCard } from "@/components/admin/inventory-forecast-card";
 
 const STATUSES = ["pending", "processing", "shipped", "fulfilled", "cancelled"];
 
@@ -129,6 +130,9 @@ export default function AdminOrdersPage() {
           {orders.length} Total Order{orders.length === 1 ? "" : "s"}
         </span>
       </div>
+
+      {/* AI Inventory Demand & Stockout Velocity Warnings */}
+      <InventoryForecastCard />
 
       {orders.length === 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">

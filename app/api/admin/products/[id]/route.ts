@@ -75,7 +75,7 @@ export async function PATCH(
     .from("products")
     .update(updateData)
     .eq("id", id)
-    .select("slug")
+    .select("name, slug, category, description")
     .single();
 
   if (error) return NextResponse.json({ error: "Failed to update product" }, { status: 500 });
@@ -179,6 +179,27 @@ export async function PATCH(
     revalidateTag("products");
     revalidateTag("home-products");
   } catch {}
+
+  // Refresh AI embedding in background
+  (async () => {
+    try {
+      const textToEmbed = [
+        name ?? product.name,
+        (category ?? product.category) ? `Category: ${category ?? product.category}` : "",
+        (description ?? product.description) ? `Description: ${description ?? product.description}` : "",
+      ]
+        .filter(Boolean)
+        .join(". ");
+
+      const { generateTextEmbedding } = await import("@/lib/ai/embeddings");
+      const embedding = await generateTextEmbedding(textToEmbed);
+      if (embedding) {
+        await (supabase.from("products") as any).update({ embedding: embedding as any }).eq("id", id);
+      }
+    } catch (embErr) {
+      logServerError("Background product embedding update failed", embErr);
+    }
+  })();
 
   return NextResponse.json({ product });
 }

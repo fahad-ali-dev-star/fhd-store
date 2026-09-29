@@ -67,6 +67,32 @@ export default function AdminProductsPage() {
   const [applyingBulk, setApplyingBulk] = useState(false);
   const [bulkSuccessMsg, setBulkSuccessMsg] = useState<string | null>(null);
 
+  // AI Embedding Sync State
+  const [syncingEmbeddings, setSyncingEmbeddings] = useState(false);
+  const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
+
+  async function handleSyncEmbeddings(forceAll = false) {
+    setSyncingEmbeddings(true);
+    setSyncStatusMsg(null);
+    try {
+      const res = await fetch("/api/admin/embeddings/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ forceAll }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSyncStatusMsg(data.message || "Vector embeddings synchronized successfully!");
+      } else {
+        setSyncStatusMsg(data.error || "Failed to synchronize embeddings.");
+      }
+    } catch {
+      setSyncStatusMsg("Network error synchronizing embeddings.");
+    } finally {
+      setSyncingEmbeddings(false);
+    }
+  }
+
   useEffect(() => {
     fetch("/api/admin/products")
       .then((res) => {
@@ -259,6 +285,16 @@ export default function AdminProductsPage() {
         <div className="flex items-center gap-2.5 flex-wrap">
           <button
             type="button"
+            disabled={syncingEmbeddings}
+            onClick={() => handleSyncEmbeddings(false)}
+            className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/80 px-3.5 py-2.5 text-sm font-semibold text-indigo-700 shadow-xs hover:bg-indigo-100 hover:border-indigo-300 transition-colors disabled:opacity-50"
+            title="Batch generate vector embeddings with Gemini text-embedding-004 for pgvector semantic search"
+          >
+            <Sparkles className={`h-4 w-4 text-indigo-600 ${syncingEmbeddings ? "animate-spin" : ""}`} />
+            <span>{syncingEmbeddings ? "Syncing Embeddings..." : "Sync AI Vectors"}</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setShowCategoryModal(true)}
             className="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-700 shadow-xs hover:bg-brand-100 hover:border-brand-300 transition-colors"
           >
@@ -274,6 +310,23 @@ export default function AdminProductsPage() {
           </Link>
         </div>
       </div>
+
+      {/* AI Vector Sync Status Notification */}
+      {syncStatusMsg && (
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 text-sm text-indigo-900 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="h-4 w-4 text-indigo-600 shrink-0" />
+            <span>{syncStatusMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSyncStatusMsg(null)}
+            className="p-1 text-indigo-400 hover:text-indigo-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* KPI Metrics Summary Bar (Shopify Analytics Bar) */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4">

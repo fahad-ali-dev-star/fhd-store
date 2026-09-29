@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Search, Sparkles, X, ArrowRight, Tag } from "lucide-react";
+import { Sparkles, X, ArrowRight, Tag, Camera, Image as ImageIcon, RefreshCw } from "lucide-react";
 
 interface SearchResultItem {
   id: string;
@@ -21,12 +21,22 @@ export function AISearchBar() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchResultItem[] | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [visualAnalysis, setVisualAnalysis] = useState<{
+    query?: string;
+    category?: string;
+    tags?: string[];
+  } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!query.trim()) return;
 
     setLoading(true);
+    setVisualAnalysis(null);
+    setImagePreview(null);
     try {
       const res = await fetch("/api/search/ai", {
         method: "POST",
@@ -45,10 +55,49 @@ export function AISearchBar() {
     }
   }
 
+  async function handleImageFile(file: File) {
+    if (!file || !file.type.startsWith("image/")) return;
+    setLoading(true);
+    setResults(null);
+    setVisualAnalysis(null);
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64Data = reader.result as string;
+      setImagePreview(base64Data);
+
+      try {
+        const res = await fetch("/api/search/visual", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: base64Data }),
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          setResults(data.results || []);
+          if (data.analysis) {
+            setVisualAnalysis(data.analysis);
+            if (data.analysis.query) {
+              setQuery(data.analysis.query);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Visual search failed", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
   function handleClose() {
     setIsOpen(false);
     setResults(null);
     setQuery("");
+    setImagePreview(null);
+    setVisualAnalysis(null);
   }
 
   return (
@@ -58,10 +107,13 @@ export function AISearchBar() {
         className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-slate-500 hover:border-indigo-300 hover:bg-white transition-all cursor-pointer shadow-xs"
       >
         <Sparkles className="h-4 w-4 text-indigo-600 animate-pulse shrink-0" />
-        <span className="flex-1 truncate">Search shirts by vibe, style, or occasion...</span>
-        <kbd className="hidden sm:inline-block rounded bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-          AI Search
-        </kbd>
+        <span className="flex-1 truncate">Search shirts by vibe, or upload photo...</span>
+        <div className="flex items-center gap-1.5">
+          <Camera className="h-3.5 w-3.5 text-slate-400 hover:text-indigo-600 transition-colors" />
+          <kbd className="hidden sm:inline-block rounded bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+            AI Search
+          </kbd>
+        </div>
       </div>
 
       {/* Modal / Expanded Dialog */}
@@ -75,10 +127,34 @@ export function AISearchBar() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Try 'vintage graphic tee' or 'white oxford'..."
+                placeholder="Type vibe (e.g. 'navy linen wedding') or snap a photo..."
                 autoFocus
                 className="flex-1 text-sm sm:text-base text-slate-900 placeholder:text-slate-400 focus:outline-none min-w-0"
               />
+
+              {/* Hidden file input for visual search */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageFile(file);
+                }}
+              />
+
+              {/* Upload image button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors"
+                title="Search by photo / screenshot"
+              >
+                <Camera className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Photo</span>
+              </button>
+
               {loading ? (
                 <svg className="h-5 w-5 animate-spin text-indigo-600" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -91,6 +167,8 @@ export function AISearchBar() {
                     onClick={() => {
                       setQuery("");
                       setResults(null);
+                      setImagePreview(null);
+                      setVisualAnalysis(null);
                     }}
                     className="p-1 text-slate-400 hover:text-slate-600"
                   >
@@ -107,12 +185,66 @@ export function AISearchBar() {
               </button>
             </form>
 
+            {/* Visual Search Preview Pill */}
+            {imagePreview && (
+              <div className="flex items-center gap-3 border-b border-indigo-50 bg-indigo-50/40 px-5 py-2.5 text-xs text-indigo-900">
+                <div className="relative h-10 w-10 rounded-lg overflow-hidden border border-indigo-200 shrink-0">
+                  <Image src={imagePreview} alt="Uploaded sample" fill className="object-cover" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-indigo-950 truncate">Visual Search active</p>
+                  <p className="text-[11px] text-indigo-700 truncate">
+                    {visualAnalysis?.query
+                      ? `Detected: "${visualAnalysis.query}"`
+                      : "Analyzing shirt texture, collar & pattern with Gemini Vision..."}
+                  </p>
+                </div>
+                {visualAnalysis?.tags && visualAnalysis.tags.length > 0 && (
+                  <div className="hidden sm:flex gap-1">
+                    {visualAnalysis.tags.slice(0, 3).map((tag) => (
+                      <span key={tag} className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImagePreview(null);
+                    setVisualAnalysis(null);
+                    setResults(null);
+                  }}
+                  className="text-indigo-400 hover:text-indigo-700 p-1"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
             {/* Content area */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-5">
-              {!results && !loading && (
+              {!results && !loading && !imagePreview && (
                 <div>
+                  <div className="mb-4 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/30 p-3.5 text-center">
+                    <p className="text-xs font-semibold text-indigo-900 mb-1">
+                      📸 Visual Search with Gemini Vision
+                    </p>
+                    <p className="text-[11px] text-slate-500 mb-2.5">
+                      Upload an Instagram outfit, Pinterest pin, or camera snapshot to find matching shirts in our store.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition-colors"
+                    >
+                      <ImageIcon className="h-3.5 w-3.5" />
+                      <span>Upload Shirt Photo</span>
+                    </button>
+                  </div>
+
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
-                    Suggested AI Searches
+                    Suggested Natural Language Searches
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {[
@@ -120,19 +252,22 @@ export function AISearchBar() {
                       "Formal white oxford shirt",
                       "Casual summer linen shirt",
                       "Dark streetwear graphic tee",
+                      "Breathable pastel polo",
                     ].map((suggestion) => (
                       <button
                         key={suggestion}
                         type="button"
                         onClick={() => {
                           setQuery(suggestion);
+                          setLoading(true);
                           fetch("/api/search/ai", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ query: suggestion }),
                           })
                             .then((res) => res.json())
-                            .then((d) => setResults(d.results || []));
+                            .then((d) => setResults(d.results || []))
+                            .finally(() => setLoading(false));
                         }}
                         className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-700 transition-all active:scale-95"
                       >
@@ -147,13 +282,19 @@ export function AISearchBar() {
               {loading && (
                 <div className="py-12 text-center">
                   <Sparkles className="mx-auto h-7 w-7 text-indigo-600 animate-spin mb-3" />
-                  <p className="text-xs sm:text-sm font-medium text-slate-700">Gemini is searching catalog for best matches...</p>
+                  <p className="text-xs sm:text-sm font-medium text-slate-700">
+                    {imagePreview
+                      ? "Gemini Vision is analyzing your photo and searching catalog..."
+                      : "Searching catalog using semantic pgvector embeddings..."}
+                  </p>
                 </div>
               )}
 
               {results && results.length === 0 && !loading && (
                 <div className="py-10 text-center">
-                  <p className="text-xs sm:text-sm text-slate-500">No matching shirts found for &quot;{query}&quot;.</p>
+                  <p className="text-xs sm:text-sm text-slate-500">
+                    No matching shirts found {query ? `for "${query}"` : ""}.
+                  </p>
                 </div>
               )}
 

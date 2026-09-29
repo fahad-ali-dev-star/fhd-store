@@ -113,6 +113,20 @@ export async function POST(req: NextRequest) {
       revalidateTag("home-products");
     } catch {}
 
+    // Generate AI embedding in background
+    (async () => {
+      try {
+        const textToEmbed = [name, category ? `Category: ${category}` : "", description ? `Description: ${description}` : ""].filter(Boolean).join(". ");
+        const { generateTextEmbedding } = await import("@/lib/ai/embeddings");
+        const embedding = await generateTextEmbedding(textToEmbed);
+        if (embedding) {
+          await (supabase.from("products") as any).update({ embedding: embedding as any }).eq("id", product.id);
+        }
+      } catch (embErr) {
+        logServerError("Background product embedding failed", embErr);
+      }
+    })();
+
     return NextResponse.json({ product });
 
   } catch (err) {

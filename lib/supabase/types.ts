@@ -16,6 +16,7 @@ export type Product = {
   discount_percent: number;
   category: string | null;
   is_active: boolean;
+  embedding?: number[] | null;
   created_at: string;
   updated_at: string;
 };

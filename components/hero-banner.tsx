@@ -216,22 +216,32 @@ export function HeroBanner({ banners: bannersProp, banner, autoPlayInterval = 45
             {subtitle}
           </p>
 
-          {/* CTAs - Stack on very small screens, row on tablet/desktop */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3.5 w-full sm:w-auto">
+          {/* CTAs - Responsive mobile layout: 2-column side-by-side or proportional single button */}
+          <div
+            className={`w-full sm:w-auto ${
+              secondaryCtaText && secondaryCtaLink
+                ? "grid grid-cols-1 min-[340px]:grid-cols-2 gap-2 sm:gap-3.5 max-w-sm sm:max-w-none"
+                : "flex flex-col min-[360px]:flex-row items-stretch min-[360px]:items-center gap-2.5 sm:gap-3.5"
+            }`}
+          >
             <a
               href={ctaLink}
-              className="inline-flex items-center justify-center gap-2 bg-white text-slate-950 px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold hover:bg-slate-100 active:scale-95 transition-all shadow-xl hover:shadow-white/20 text-xs sm:text-sm tracking-wide min-h-[42px] sm:min-h-[44px]"
+              className={`group/cta inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-white text-slate-950 px-3.5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold hover:bg-slate-100 active:scale-[0.98] transition-all shadow-xl hover:shadow-white/20 text-xs sm:text-sm tracking-wide min-h-[44px] sm:min-h-[46px] ${
+                secondaryCtaText && secondaryCtaLink
+                  ? "w-full sm:w-auto text-center"
+                  : "w-full min-[360px]:w-auto min-[360px]:min-w-[180px] max-w-[280px] sm:max-w-none"
+              }`}
             >
-              <span>{ctaText}</span>
-              <ArrowRight size={15} />
+              <span className="truncate">{ctaText}</span>
+              <ArrowRight size={14} className="shrink-0 transition-transform group-hover/cta:translate-x-0.5" />
             </a>
 
             {secondaryCtaText && secondaryCtaLink && (
               <Link
                 href={secondaryCtaLink}
-                className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/25 px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-medium transition-all text-xs sm:text-sm active:scale-95 min-h-[42px] sm:min-h-[44px]"
+                className="inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-white/15 hover:bg-white/25 active:bg-white/30 backdrop-blur-md text-white border border-white/30 px-3.5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold sm:font-medium transition-all text-xs sm:text-sm active:scale-[0.98] min-h-[44px] sm:min-h-[46px] w-full sm:w-auto text-center"
               >
-                <span>{secondaryCtaText}</span>
+                <span className="truncate">{secondaryCtaText}</span>
               </Link>
             )}
           </div>
@@ -241,50 +251,78 @@ export function HeroBanner({ banners: bannersProp, banner, autoPlayInterval = 45
       {/* ── Multi-Banner Navigation (Arrows & Indicators) ── */}
       {isMulti && (
         <>
-          {/* Left Arrow (Visible on hover on desktop, subtle on mobile/tablet) */}
+          {/* Left Arrow (Desktop / Tablet - visible on hover) */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               prevSlide();
             }}
-            className="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/70 text-white/90 hover:text-white backdrop-blur-md border border-white/15 flex items-center justify-center transition-all opacity-70 sm:opacity-0 sm:group-hover/hero:opacity-100 hover:scale-110 active:scale-95 shadow-lg"
+            className="hidden sm:flex absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/70 text-white/90 hover:text-white backdrop-blur-md border border-white/15 items-center justify-center transition-all opacity-0 group-hover/hero:opacity-100 hover:scale-110 active:scale-95 shadow-lg"
             aria-label="Previous banner slide"
           >
             <ChevronLeft size={18} className="sm:w-5 sm:h-5" />
           </button>
 
-          {/* Right Arrow (Visible on hover on desktop, subtle on mobile/tablet) */}
+          {/* Right Arrow (Desktop / Tablet - visible on hover) */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               nextSlide();
             }}
-            className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/70 text-white/90 hover:text-white backdrop-blur-md border border-white/15 flex items-center justify-center transition-all opacity-70 sm:opacity-0 sm:group-hover/hero:opacity-100 hover:scale-110 active:scale-95 shadow-lg"
+            className="hidden sm:flex absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black/40 hover:bg-black/70 text-white/90 hover:text-white backdrop-blur-md border border-white/15 items-center justify-center transition-all opacity-0 group-hover/hero:opacity-100 hover:scale-110 active:scale-95 shadow-lg"
             aria-label="Next banner slide"
           >
             <ChevronRight size={18} className="sm:w-5 sm:h-5" />
           </button>
 
-          {/* Slide Indicator Dots */}
-          <div className="absolute bottom-3 sm:bottom-6 md:bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 sm:gap-2 bg-black/40 backdrop-blur-md px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full border border-white/15">
-            {effectiveBanners.map((_, dotIdx) => {
-              const isActive = dotIdx === currentIndex;
-              return (
-                <button
-                  key={dotIdx}
-                  type="button"
-                  onClick={() => setCurrentIndex(dotIdx)}
-                  className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 ${
-                    isActive
-                      ? "w-5 sm:w-6 bg-white shadow-xs"
-                      : "w-1.5 sm:w-2 bg-white/40 hover:bg-white/70"
-                  }`}
-                  aria-label={`Go to slide ${dotIdx + 1}`}
-                />
-              );
-            })}
+          {/* Slide Indicator Dots & Mobile Touch Navigation */}
+          <div className="absolute bottom-3 sm:bottom-6 md:bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 sm:gap-2 bg-black/50 backdrop-blur-md px-2.5 sm:px-3.5 py-1.5 rounded-full border border-white/20 shadow-lg">
+            {/* Mobile Prev Micro-Button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                prevSlide();
+              }}
+              className="sm:hidden p-1 -ml-1 text-white/70 hover:text-white active:scale-90 transition-all rounded-full"
+              aria-label="Previous slide"
+            >
+              <ChevronLeft size={14} />
+            </button>
+
+            <div className="flex items-center gap-1.5 sm:gap-2 px-0.5">
+              {effectiveBanners.map((_, dotIdx) => {
+                const isActive = dotIdx === currentIndex;
+                return (
+                  <button
+                    key={dotIdx}
+                    type="button"
+                    onClick={() => setCurrentIndex(dotIdx)}
+                    className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 ${
+                      isActive
+                        ? "w-5 sm:w-6 bg-white shadow-xs"
+                        : "w-1.5 sm:w-2 bg-white/40 hover:bg-white/70"
+                    }`}
+                    aria-label={`Go to slide ${dotIdx + 1}`}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Mobile Next Micro-Button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                nextSlide();
+              }}
+              className="sm:hidden p-1 -mr-1 text-white/70 hover:text-white active:scale-90 transition-all rounded-full"
+              aria-label="Next slide"
+            >
+              <ChevronRight size={14} />
+            </button>
           </div>
         </>
       )}

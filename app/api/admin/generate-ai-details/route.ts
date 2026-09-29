@@ -3,10 +3,9 @@ import { requireUser } from "@/lib/admin";
 import { logServerError } from "@/lib/api/errors";
 
 const GEMINI_MODELS = [
-  "gemini-3.6-flash",
   "gemini-2.5-flash",
-  "gemini-2.0-flash",
   "gemini-1.5-flash",
+  "gemini-2.0-flash",
 ];
 
 // Smart Fashion Copywriting Engine for Pakistani e-commerce clothing

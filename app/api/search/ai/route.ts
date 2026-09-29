@@ -30,42 +30,28 @@ export async function POST(req: NextRequest) {
 
     let matchedProducts: ProductRecord[] = [];
 
-    if (apiKey) {
-      try {
-        // Generate embedding vector for the search query using Gemini embedding-001
-        const embedUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${apiKey}`;
-        const embedRes = await fetch(embedUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "models/gemini-embedding-001",
-            content: { parts: [{ text: query.trim() }] },
-          }),
-        });
+    // 1. Vector embedding search via Gemini text-embedding-004
+    try {
+      const { generateTextEmbedding } = await import("@/lib/ai/embeddings");
+      const queryEmbedding = await generateTextEmbedding(query.trim());
 
-        if (embedRes.ok) {
-          const embedData = await embedRes.json();
-          const queryEmbedding = embedData?.embedding?.values;
-
-          if (queryEmbedding && Array.isArray(queryEmbedding)) {
-            // Perform pgvector cosine similarity search in Supabase
-            const { data: vectorMatches, error: rpcError } = await (supabase as any).rpc(
-              "match_products",
-              {
-                query_embedding: queryEmbedding,
-                match_threshold: 0.15,
-                match_count: 8,
-              }
-            );
-
-            if (!rpcError && vectorMatches && Array.isArray(vectorMatches) && vectorMatches.length > 0) {
-              matchedProducts = vectorMatches as ProductRecord[];
-            }
+      if (queryEmbedding && Array.isArray(queryEmbedding)) {
+        // Perform pgvector cosine similarity search in Supabase
+        const { data: vectorMatches, error: rpcError } = await (supabase as any).rpc(
+          "match_products",
+          {
+            query_embedding: queryEmbedding,
+            match_threshold: 0.15,
+            match_count: 8,
           }
+        );
+
+        if (!rpcError && vectorMatches && Array.isArray(vectorMatches) && vectorMatches.length > 0) {
+          matchedProducts = vectorMatches as ProductRecord[];
         }
-      } catch (embeddingErr) {
-        logServerError("Gemini vector embedding search failed, falling back to text search", embeddingErr);
       }
+    } catch (embeddingErr) {
+      logServerError("Gemini vector embedding search failed, falling back to text search", embeddingErr);
     }
 
     // Fallback: If no vector matches found (or pgvector SQL not executed yet), run smart ILIKE text search
