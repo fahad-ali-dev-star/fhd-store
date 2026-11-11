@@ -1,28 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { generateTextEmbedding } from "@/lib/ai/embeddings";
 import { logServerError } from "@/lib/api/errors";
+import {
+  VisualAnalysisResult,
+  ClientVisualTelemetry,
+} from "@/lib/ai/fashion-taxonomy";
+import { analyzeImageLocally } from "@/lib/ai/vision-analyzer";
+import { matchCatalogProducts } from "@/lib/ai/catalog-matcher";
 
+// Prioritized Gemini Vision models (current 3.8 down through 1.5 flash)
 const GEMINI_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.5-flash",
   "gemini-2.5-flash",
-  "gemini-1.5-flash",
   "gemini-2.0-flash",
+  "gemini-1.5-flash",
 ];
 
-interface ProductRecord {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  base_price: number;
-  category: string | null;
-  similarity?: number;
-  image_url?: string | null;
-}
+const PROMPT = `You are a world-class fashion director and computer vision visual search engine for a luxury apparel and shirt store.
+Analyze the provided image of a garment or outfit with precision.
+
+Identify and return pure valid JSON with the following fields:
+{
+  "query": "Precise 3-6 word fashion e-commerce search title (e.g. 'Vintage indigo denim shirt', 'Classic charcoal pique polo shirt', 'White heavy crewneck cotton tee', 'Tropical floral Hawaiian resort shirt')",
+  "apparel_type": "One of: 'shirt', 'tshirt', 'polo', 'jacket', 'overshirt'",
+  "sub_category": "One of: 'denim-shirt', 'oxford-shirt', 'linen-shirt', 'flannel-shirt', 'hawaiian-shirt', 'polo-shirt', 'graphic-tee', 'plain-tee', 'striped-tee', 'leather-jacket', 'casual-shirt'",
+  "primary_color": "Dominant color name (e.g. 'Indigo Blue', 'Charcoal Grey', 'Pure White', 'Jet Black', 'Sand Beige', 'Tropical Sunset', 'Olive Green')",
+  "color_hex": "6-digit hex color code matching the primary color (e.g. '#1e3a8a', '#374151', '#f8fafc', '#111827', '#d4b996')",
+  "secondary_colors": ["Optional accent or secondary colors"],
+  "pattern": "One of: 'solid', 'striped', 'plaid', 'floral', 'graphic', 'acid-wash', 'textured-weave', 'colorblock'",
+  "fabric": "Estimated fabric (e.g. 'denim', 'linen', 'oxford cotton', 'pique cotton', 'combed cotton', 'flannel', 'leather', 'rayon')",
+  "collar_style": "One of: 'button-down', 'polo collar', 'crewneck', 'spread collar', 'camp collar', 'biker lapel', 'mandarin'",
+  "sleeve_length": "One of: 'short-sleeve', 'long-sleeve', 'sleeveless'",
+  "vibe": "One of: 'smart-casual', 'streetwear', 'business-formal', 'summer-resort', 'vintage-rugged', 'minimalist'",
+  "analysis_summary": "A professional 1-2 sentence fashion stylist description detailing the garment's texture, cut, collar, and silhouette.",
+  "confidence": 0.95,
+  "tags": ["4 to 6 relevant fashion keywords (e.g. 'denim', 'indigo', 'western', 'cotton', 'vintage')"]
+}`;
 
 export async function POST(req: NextRequest) {
   try {
-    const { image } = await req.json();
+    const body = await req.json();
+    const { image, clientTelemetry } = body as {
+      image?: string;
+      clientTelemetry?: ClientVisualTelemetry;
+    };
+
     if (!image || typeof image !== "string") {
       return NextResponse.json({ error: "Image data is required" }, { status: 400 });
     }
@@ -42,37 +65,23 @@ export async function POST(req: NextRequest) {
       base64Data = image;
     }
 
-    let detectedQuery = "casual shirt";
-    let detectedCategory = "casual-shirts";
-    let detectedTags: string[] = [];
+    let analysisResult: VisualAnalysisResult | null = null;
+    let geminiApiIssue: string | null = null;
 
+    // 1. Attempt Gemini Vision Multimodal Analysis
     if (apiKey && base64Data) {
-      const prompt = `You are an AI visual search engine for a premium apparel and shirt store.
-Analyze the provided image of a shirt or clothing outfit.
-Extract:
-1. "query": A concise 3-6 word search phrase describing the shirt (e.g. "navy blue slim fit oxford shirt", "vintage white graphic tee", "linen resort collar shirt").
-2. "category": Most suitable category from: "oxford-shirts", "casual-shirts", "formal-shirts", "polos", "t-shirts", "oversized-tees", "denim-shirts", "linen-shirts".
-3. "tags": 3 to 5 style/color/fabric keywords.
-
-Return ONLY pure valid JSON in this format:
-{
-  "query": "...",
-  "category": "...",
-  "tags": ["..."]
-}`;
-
       for (const model of GEMINI_MODELS) {
         try {
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
           const res = await fetch(geminiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            signal: AbortSignal.timeout(6000),
+            signal: AbortSignal.timeout(7000),
             body: JSON.stringify({
               contents: [
                 {
                   parts: [
-                    { text: prompt },
+                    { text: PROMPT },
                     {
                       inlineData: {
                         mimeType,
@@ -84,7 +93,7 @@ Return ONLY pure valid JSON in this format:
               ],
               generationConfig: {
                 responseMimeType: "application/json",
-                temperature: 0.2,
+                temperature: 0.1,
               },
             }),
           });
@@ -98,72 +107,67 @@ Return ONLY pure valid JSON in this format:
                 clean = clean.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
               }
               const parsed = JSON.parse(clean);
-              if (parsed.query) detectedQuery = parsed.query;
-              if (parsed.category) detectedCategory = parsed.category;
-              if (Array.isArray(parsed.tags)) detectedTags = parsed.tags;
+              if (parsed.query && parsed.primary_color) {
+                analysisResult = {
+                  query: parsed.query,
+                  apparel_type: parsed.apparel_type || "shirt",
+                  sub_category: parsed.sub_category || "casual-shirt",
+                  primary_color: parsed.primary_color,
+                  color_hex: parsed.color_hex || "#1e3a8a",
+                  secondary_colors: Array.isArray(parsed.secondary_colors) ? parsed.secondary_colors : [],
+                  pattern: parsed.pattern || "solid",
+                  fabric: parsed.fabric || "cotton",
+                  collar_style: parsed.collar_style || "button-down",
+                  sleeve_length: parsed.sleeve_length || "long-sleeve",
+                  vibe: parsed.vibe || "smart-casual",
+                  analysis_summary: parsed.analysis_summary || `Detected ${parsed.query} with authentic styling and tailored silhouette.`,
+                  confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.95,
+                  tags: Array.isArray(parsed.tags) ? parsed.tags : [parsed.apparel_type || "shirt"],
+                  engine: "gemini-vision",
+                };
+                break;
+              }
+            }
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = errData?.error?.message || `HTTP ${res.status}`;
+            geminiApiIssue = errMsg;
+            // If project free tier unavailable (403), no need to retry every other model
+            if (res.status === 403 && errMsg.includes("free tier is not available")) {
               break;
             }
           }
-        } catch (err) {
-          logServerError(`Visual search Gemini call failed with model ${model}`, err);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          geminiApiIssue = msg;
         }
       }
     }
 
+    // 2. High-Precision Computer Vision & Palette Fallback Engine
+    if (!analysisResult && base64Data) {
+      const notice = geminiApiIssue?.includes("free tier is not available")
+        ? "Gemini API requires billing enabled at aistudio.google.com/billing. Visual search utilized High-Precision Color & Attribute Vision Engine."
+        : undefined;
+
+      analysisResult = analyzeImageLocally(base64Data, clientTelemetry, notice);
+    }
+
+    if (!analysisResult) {
+      return NextResponse.json({ error: "Failed to analyze image" }, { status: 422 });
+    }
+
+    // 3. Query Database Catalog Products & Attach Primary Images
     const supabase = await createClient();
-    let matchedProducts: ProductRecord[] = [];
+    const { data: rawProducts } = await supabase
+      .from("products")
+      .select("id, name, slug, description, base_price, category, is_active")
+      .eq("is_active", true);
 
-    // 1. Try vector embedding search with detectedQuery
-    const embedding = await generateTextEmbedding(detectedQuery);
-    if (embedding) {
-      try {
-        const { data: vectorMatches, error: rpcError } = await (supabase as any).rpc(
-          "match_products",
-          {
-            query_embedding: embedding,
-            match_threshold: 0.15,
-            match_count: 8,
-          }
-        );
+    const activeProducts = (rawProducts || []) as any[];
 
-        if (!rpcError && vectorMatches && Array.isArray(vectorMatches) && vectorMatches.length > 0) {
-          matchedProducts = vectorMatches as ProductRecord[];
-        }
-      } catch (rpcErr) {
-        logServerError("Visual vector match failed, falling back to category/text query", rpcErr);
-      }
-    }
-
-    // 2. Fallback text / category search
-    if (matchedProducts.length === 0) {
-      const searchTerms = detectedQuery.split(/\s+/).filter(Boolean);
-      let dbQuery = supabase
-        .from("products")
-        .select("id, name, slug, description, base_price, category")
-        .eq("is_active", true)
-        .limit(8);
-
-      if (detectedCategory) {
-        dbQuery = dbQuery.or(`category.eq.${detectedCategory},name.ilike.%${searchTerms[0] || "shirt"}%`);
-      }
-
-      const { data: textMatches } = await dbQuery;
-      if (textMatches && Array.isArray(textMatches)) {
-        matchedProducts = (textMatches as any[]).map((p) => ({
-          id: p.id,
-          name: p.name,
-          slug: p.slug,
-          description: p.description,
-          base_price: Number(p.base_price),
-          category: p.category,
-          similarity: 0.85,
-        }));
-      }
-    }
-
-    // 3. Attach primary product images
-    if (matchedProducts.length > 0) {
-      const productIds = matchedProducts.map((p) => p.id);
+    if (activeProducts.length > 0) {
+      const productIds = activeProducts.map((p) => p.id);
       const { data: images } = await supabase
         .from("product_images")
         .select("product_id, url")
@@ -179,23 +183,21 @@ Return ONLY pure valid JSON in this format:
         });
       }
 
-      matchedProducts = matchedProducts.map((p) => ({
-        ...p,
-        image_url: imageMap.get(p.id) || null,
-      }));
+      activeProducts.forEach((p) => {
+        p.image_url = imageMap.get(p.id) || null;
+      });
     }
+
+    // 4. Run Multi-Factor Weighted Catalog Matching Algorithm
+    const matchedProducts = matchCatalogProducts(activeProducts, analysisResult, 8);
 
     return NextResponse.json({
       success: true,
-      analysis: {
-        query: detectedQuery,
-        category: detectedCategory,
-        tags: detectedTags,
-      },
+      analysis: analysisResult,
       results: matchedProducts,
     });
   } catch (err: unknown) {
-    logServerError("Visual search route failed", err);
+    logServerError("Visual search route exception", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Visual search failed" },
       { status: 500 }
