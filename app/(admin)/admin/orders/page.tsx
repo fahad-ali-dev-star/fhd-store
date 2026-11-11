@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { AdminOrder, OrderItemWithProduct } from "@/lib/supabase/types";
 import { InventoryForecastCard } from "@/components/admin/inventory-forecast-card";
+import { OrderShippingSlipModal } from "@/components/admin/order-shipping-slip-modal";
+import { Printer } from "lucide-react";
 
 const STATUSES = ["pending", "processing", "shipped", "fulfilled", "cancelled"];
 
@@ -10,6 +12,7 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedOrderForSlip, setSelectedOrderForSlip] = useState<AdminOrder | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/orders")
@@ -219,6 +222,17 @@ export default function AdminOrdersPage() {
                     </option>
                   ))}
                 </select>
+
+                {/* Print Dispatch Slip / Address Label Button */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderForSlip(order)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 transition-colors shadow-2xs"
+                  title="Print Shipping Label & Order Slip with Client Address"
+                >
+                  <Printer className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Print Slip</span>
+                </button>
               </div>
             </div>
 
@@ -355,6 +369,12 @@ export default function AdminOrdersPage() {
           </div>
         ))}
       </div>
+
+      {/* Printable Order Shipping Slip Modal */}
+      <OrderShippingSlipModal
+        order={selectedOrderForSlip}
+        onClose={() => setSelectedOrderForSlip(null)}
+      />
     </div>
   );
 }
